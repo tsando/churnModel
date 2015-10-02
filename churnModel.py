@@ -20,6 +20,23 @@ from sklearn.tree import DecisionTreeClassifier as DT
 
 ###########################
 
+
+# Define target
+y = cust_df['churnlabel']
+
+# Define categorical and numerical features
+cat_cols = ['gender', 'shippingCountry']
+num_cols = ['premier', 'year', 'month', 'day', 'age']
+
+# Define drop columns
+drop_cols = set(cust_df.columns.tolist()) - set(cat_cols + num_cols)
+
+# Create feature matrix
+cust_df2 = cust_df
+# drop cols
+cust_df2 = cust_df2.drop(drop_cols, axis=1)
+
+
 # transform categorical to dummy vars # currently gives 2 FutureWarnings
 le = preprocessing.LabelEncoder()  # used instead of pandas.get_dummies as too many levels in countries
 for i in cat_cols:
