@@ -21,13 +21,13 @@ def getCSVsDF(path):
     allFiles = glob.glob(path)
     list = []
     for f in allFiles:
-        df = pd.read_csv(f, header=None, delimiter="\t")
+        df = pd.read_csv(f, header=None, delimiter="\t") # Must have tab as delimiter
         list.append(df)
     return pd.concat(list)
 
 # ## Check for duplicates
-def getDuplicatesDF(var, df):
-    dups = df.duplicated(var)
+def getDuplicatesDF(key, df):
+    dups = df.duplicated(key)
     return df[dups == True]
 
 def hasDuplicates(key, df):
@@ -42,7 +42,6 @@ def hasDuplicates(key, df):
 def convertStrToDatetime(df, colName):
     df[colName] = pd.to_datetime(pd.Series(df[colName]))
 
-# ##### Read csv files. Must have tab as delimiter
 
 # #### CUSTOMER
 
@@ -85,24 +84,53 @@ convertStrToDatetime(rec_df, 'signalDate')
 # Check for duplicates wrt common key
 hasDuplicates('customerId2', rec_df)
 
+# Duplicate sourceId col to cal 2 diff metrics in agg below
+rec_df['sourceId2'] = rec_df['sourceId']
+
 # Create groupby object
 g = rec_df.groupby('customerId2')
-rec_df2 = g.agg({'productId' : 'nunique', 'divisionId': 'nunique'})
 
+# Calculate stats for grouby object
+print "INFO:: Calculating stats at customer level"
+rec_df2 = g.agg({'productId': 'nunique',  # n distinct products
+                 'divisionId': 'nunique',  # purchased from n distinct departments
+                 'sourceId': 'nunique',  # at n distinct sources
+                 #  function can be replaced by more elegant lambda x:x.value_counts().index[0]
+                 # http://stackoverflow.com/questions/15222754/group-by-pandas-dataframe-and-select-most-common-string-factor
+                 'sourceId2': lambda x: stats.mode(x)[0][0],  # with most freq source being this
+                 'itemQty': 'sum',
+                 'price': 'sum',  # total spent
+                 'receiptId': 'nunique'  # order volume per customer
+                 })
 
-# ################### RETURNS
+# Rename columns
+# x = x.rename(columns={'receipt_id': 'total_returns', '...'})
 
-path = 'data/returns_*.csv'
-ret_df = getCSVsDF(path)
-ret_df.columns = ['customerId2', 'productId', 'divisionId', 'sourceId', 'itemQty', 'signalDate',
-                  'receiptId', 'returnId', 'returnAction', 'returnReason']
+rec_df2 = rec_df2.rename(columns={'customerId2': 'customerId2',
+                                  'productId': 'productId_N',
+                                  'divisionId': 'divisionId_N',
+                                  'sourceId': 'sourceId_N',
+                                  'sourceId2': 'sourceId_mode',
+                                  'itemQty': 'itemQty_sum',
+                                  'price': 'price_sum',
+                                  'receiptId': 'receiptId_N'})
 
-# ################### RECEIPTS
+# Pre X matrix (some additional steps required to make it X in churnModel.py)
+X0 = cust_df2.join(rec_df2, on='customerId2')
 
-# Convert date string to datetime object
-convertStrToDatetime(rec_df, 'signalDate')
-hasDuplicates('customerId2', rec_df)
-
+# # ################### RETURNS
+#
+# path = 'data/returns_*.csv'
+# ret_df = getCSVsDF(path)
+# ret_df.columns = ['customerId2', 'productId', 'divisionId', 'sourceId', 'itemQty', 'signalDate',
+#                   'receiptId', 'returnId', 'returnAction', 'returnReason']
+#
+# # ################### RECEIPTS
+#
+# # Convert date string to datetime object
+# convertStrToDatetime(rec_df, 'signalDate')
+# hasDuplicates('customerId2', rec_df)
+#
 
 # # Create TotalSpent column
 # rec_df2 = rec_df

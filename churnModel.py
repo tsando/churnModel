@@ -22,29 +22,27 @@ from sklearn.tree import DecisionTreeClassifier as DT
 
 
 # Define target
-y = cust_df['churnlabel']
+y = X0['churnlabel']
 
 # Define categorical and numerical features
 cat_cols = ['gender', 'shippingCountry']
-num_cols = ['premier', 'year', 'month', 'day', 'age']
+num_cols = ['premier', 'age', 'year', 'month', 'day',
+            'itemQty_sum', 'sourceId_N', 'sourceId_mode', 'sourceId_mode', 'receiptId_N', 'productId_N']
 
-# Define drop columns
-drop_cols = set(cust_df.columns.tolist()) - set(cat_cols + num_cols)
-
-# Create feature matrix
-cust_df2 = cust_df
-# drop cols
-cust_df2 = cust_df2.drop(drop_cols, axis=1)
+# Drop unused columns
+drop_cols = set(X0.columns.tolist()) - set(cat_cols + num_cols)
+X1 = X0
+X1 = X1.drop(drop_cols, axis=1)
 
 
-# transform categorical to dummy vars # currently gives 2 FutureWarnings
+# Transform categorical to dummy vars using Label Encoder - currently gives 2 FutureWarnings
 le = preprocessing.LabelEncoder()  # used instead of pandas.get_dummies as too many levels in countries
 for i in cat_cols:
-    le.fit(cust_df2[i])  # get no. of diff categories in 1-d vector
-    cust_df2[i] = le.transform(cust_df2[i])
+    le.fit(X1[i])  # get no. of diff categories in 1-d vector
+    X1[i] = le.transform(X1[i])
 
 # Normalise data to standard normally distributed data
-X = cust_df2.as_matrix().astype(np.float)
+X = X1.as_matrix().astype(np.float)
 scaler = StandardScaler()
 X = scaler.fit_transform(X)
 
@@ -52,7 +50,7 @@ print "Feature space holds %d observations and %d features" % X.shape
 print "Unique target labels:", np.unique(y)
 
 
-### Split into train and test data using KFold (both X and y must be np arrays)
+# Split into train and test data using KFold (both X and y must be np arrays)
 
 def run_model(X, y, clf_class, **kwargs):
     n = len(X)
