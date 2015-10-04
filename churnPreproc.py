@@ -14,21 +14,25 @@ import glob as glob
 import pandas as pd
 import numpy  as np # to use unique
 from IPython import embed # needed to use globa variables inside functions in IPython
-from matplotlib import pylab, mlab, pyplot as plt
+# from matplotlib import pylab, mlab, pyplot as plt
+from scipy import stats  # required for stats.mode function
+
 
 # ## Function to concatenate to single df multiple CSVs from the same source table
 def getCSVsDF(path):
     allFiles = glob.glob(path)
     list = []
     for f in allFiles:
-        df = pd.read_csv(f, header=None, delimiter="\t") # Must have tab as delimiter
+        df = pd.read_csv(f, header=None, delimiter="\t")  # Must have tab as delimiter
         list.append(df)
     return pd.concat(list)
+
 
 # ## Check for duplicates
 def getDuplicatesDF(key, df):
     dups = df.duplicated(key)
     return df[dups == True]
+
 
 def hasDuplicates(key, df):
     dups = getDuplicatesDF(key, df)
@@ -37,6 +41,7 @@ def hasDuplicates(key, df):
         return True
     print "INFO:: df doesn't have duplicates - TEST PASSED"
     return False
+
 
 # ## Convert string dates to datetime objects
 def convertStrToDatetime(df, colName):
@@ -130,7 +135,24 @@ X0 = cust_df2.join(rec_df2, on='customerId2')
 # # Convert date string to datetime object
 # convertStrToDatetime(rec_df, 'signalDate')
 # hasDuplicates('customerId2', rec_df)
-#
+
+
+##################################################
+# PLOTTING
+##################################################
+
+# # ## Plot time series for a particular customer
+# def plotCustTimeSeries(rec_df, my_customerId2):
+#     # e.g. my_customerId2 = 397211
+#     b = rec_df[rec_df.customerId2 == my_customerId2][['signalDate', 'TotalSpent']]
+#     b['month'] = b.signalDate.apply(datetime.date.strftime, args=('%Y.%m',))
+#     a = b.groupby(['month'])['TotalSpent'].aggregate(sum)
+#     a.plot()
+
+
+##################################################
+# APPENDIX
+##################################################
 
 # # Create TotalSpent column
 # rec_df2 = rec_df
@@ -158,22 +180,3 @@ X0 = cust_df2.join(rec_df2, on='customerId2')
 # rec_df[dups==True].head()
 # rec_df[rec_df.customerId2 == 1548585].head()
 # rec_df[rec_df.customerId2 == 397211].head()
-
-##################################################
-# PLOTTING
-##################################################
-
-# # ## Plot time series for a particular customer
-# def plotCustTimeSeries(rec_df, my_customerId2):
-#     # e.g. my_customerId2 = 397211
-#     b = rec_df[rec_df.customerId2 == my_customerId2][['signalDate', 'TotalSpent']]
-#     b['month'] = b.signalDate.apply(datetime.date.strftime, args=('%Y.%m',))
-#     a = b.groupby(['month'])['TotalSpent'].aggregate(sum)
-#     a.plot()
-
-
-##################################################
-# APPENDIX
-##################################################
-
-
