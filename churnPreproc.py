@@ -14,6 +14,7 @@ import glob as glob
 import pandas as pd
 import numpy  as np # to use unique
 from IPython import embed # needed to use globa variables inside functions in IPython
+import matplotlib as mpl
 # from matplotlib import pylab, mlab, pyplot as plt
 from scipy import stats  # required for stats.mode function
 
@@ -47,6 +48,14 @@ def hasDuplicates(key, df):
 def convertStrToDatetime(df, colName):
     df[colName] = pd.to_datetime(pd.Series(df[colName]))
 
+# ## Calculate linear regression slope
+def getLRslope(df):
+    # df.index = df.monthyear
+    # Required to fix bug in linregress
+    x = mpl.dates.date2num(df.index.to_pydatetime())
+    y = df.Total
+    # Fit linear regression and get only slope/gradient
+    return stats.linregress(x, y).slope
 
 # #### CUSTOMER
 
@@ -60,7 +69,7 @@ cust_df.columns = ['customerId2', 'churnlabel', 'gender', 'shippingCountry',
 convertStrToDatetime(cust_df, 'dateCreated')
 
 # Check for duplicates wrt common key
-hasDuplicates('customerId2', cust_df)
+# hasDuplicates('customerId2', cust_df)
 
 # Create customer age metric
 cust_df['age'] = datetime.date.today().year - cust_df['yearOfBirth']
@@ -86,32 +95,57 @@ rec_df.columns = ['customerId2', 'productId', 'divisionId', 'sourceId', 'itemQty
 # Convert date to datetime object
 convertStrToDatetime(rec_df, 'signalDate')
 
-# Check for duplicates wrt common key
-hasDuplicates('customerId2', rec_df)
+# # Check for duplicates wrt common key
+# hasDuplicates('customerId2', rec_df)
 
-# Duplicate sourceId col to cal 2 diff metrics in agg below
+# Duplicate sourceId col to calculate 2 diff metrics in agg below
 rec_df['sourceId2'] = rec_df['sourceId']
 
+# Extract month and year from datetime variable
+rec_df['monthyear'] = rec_df.signalDate.apply(datetime.date.strftime, args=('%Y.%m',))
+
+# Convert from object type back to datetime type
+rec_df['monthyear'] = pd.to_datetime(rec_df.monthyear, format='%Y.%m')
+
+# Calculate total spent on receipt/order
+rec_df['Total'] = rec_df['itemQty'] * rec_df['price']
+
 # Create groupby object
-g = rec_df.groupby('customerId2')
+grouped = rec_df.groupby('customerId2')
+
+# Prepare data frame for linear regression (Total per customer per monthyear);
+# reset_index used to remove multiindex format
+rec_df2 = rec_df.groupby(['customerId2','monthyear'])['Total'].sum().reset_index()
+rec_df2.index = rec_df2.monthyear
+rec_df2 = rec_df2.drop('monthyear', axis=1)
+# This takes about 15 min!
+print "INFO:: Calculating gradient of Total Spent time series per customer"
+rec_df2 = rec_df2.groupby('customerId2').apply(getLRslope)
+
+# Fill NaNs with zero (inplace=True to change contents of df itself)
+rec_df2.fillna(0, inplace=True)
+
+# Convert to data frame object with a column name to be able to join to rec_df3 below
+rec_df2 = pd.DataFrame(rec_df2)
+rec_df2.columns = ['slope']
 
 # Calculate stats for grouby object
 print "INFO:: Calculating stats at customer level"
-rec_df2 = g.agg({'productId': 'nunique',  # n distinct products
-                 'divisionId': 'nunique',  # purchased from n distinct departments
-                 'sourceId': 'nunique',  # at n distinct sources
-                 #  function can be replaced by more elegant lambda x:x.value_counts().index[0]
-                 # http://stackoverflow.com/questions/15222754/group-by-pandas-dataframe-and-select-most-common-string-factor
-                 'sourceId2': lambda x: stats.mode(x)[0][0],  # with most freq source being this
-                 'itemQty': 'sum',
-                 'price': 'sum',  # total spent
-                 'receiptId': 'nunique'  # order volume per customer
-                 })
+rec_df3 = grouped.agg({'productId': 'nunique',  # n distinct products
+                       'divisionId': 'nunique',  # purchased from n distinct departments
+                       'sourceId': 'nunique',  # at n distinct sources
+                       #  function can be replaced by more elegant lambda x:x.value_counts().index[0]
+                       # http://stackoverflow.com/questions/15222754/group-by-pandas-dataframe-and-select-most-common-string-factor
+                       'sourceId2': lambda x: stats.mode(x)[0][0],  # with most freq source being this
+                       'itemQty': 'sum',
+                       'price': 'sum',  # total spent
+                       'receiptId': 'nunique'  # n transactions per customer
+                       })
 
 # Rename columns
 # x = x.rename(columns={'receipt_id': 'total_returns', '...'})
 
-rec_df2 = rec_df2.rename(columns={'customerId2': 'customerId2',
+rec_df3 = rec_df3.rename(columns={'customerId2': 'customerId2',
                                   'productId': 'productId_N',
                                   'divisionId': 'divisionId_N',
                                   'sourceId': 'sourceId_N',
@@ -120,8 +154,11 @@ rec_df2 = rec_df2.rename(columns={'customerId2': 'customerId2',
                                   'price': 'price_sum',
                                   'receiptId': 'receiptId_N'})
 
+# Join linear regression slope (rec_df2) with other stats (rec_df3) on index customerId2
+rec_df4 = rec_df3.join(rec_df2)
+
 # Pre X matrix (some additional steps required to make it X in churnModel.py)
-X0 = cust_df2.join(rec_df2, on='customerId2')
+X0 = cust_df2.join(rec_df4, on='customerId2')
 
 # # ################### RETURNS
 #

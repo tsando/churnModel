@@ -57,6 +57,7 @@ def main(y, X0, cat_cols, num_cols, args):
     drop_cols = set(X0.columns.tolist()) - set(cat_cols + num_cols)
     X = X0
     X = X.drop(drop_cols, axis=1)
+    print "INFO:: X columns"+ X.columns
 
     # Transform categorical to dummy vars using Label Encoder - currently gives 2 FutureWarnings
     le = preprocessing.LabelEncoder()  # used instead of pandas.get_dummies as too many levels in countries
@@ -91,6 +92,7 @@ y = X0['churnlabel']
 cat_cols = ['gender', 'shippingCountry']
 num_cols = ['premier', 'age', 'year', 'month', 'day',
             'itemQty_sum', 'sourceId_N', 'price_sum', 'divisionId_N' 'sourceId_mode',
-            'receiptId_N', 'productId_N']
+            'receiptId_N', 'productId_N',
+            'slope']
 
-main(y, X0, cat_cols, num_cols, [GB])  # DT stands for DecisionTree algo
+main(y, X0, cat_cols, num_cols, [DT, GB])  # DT stands for DecisionTree and GB for Gradient Boosting
